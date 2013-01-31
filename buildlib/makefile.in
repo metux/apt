@@ -11,6 +11,12 @@ SRCDIR=@top_srcdir@
 BUILD:=$(shell pwd)
 export BUILD
 
+PREFIX=@prefix@
+BINDIR=@bindir@
+SBINDIR=@sbindir@
+SYSCONFDIR=@sysconfdir@
+LIBDIR=@libdir@
+
 # Chain to the parent make to do the actual building
 .PHONY: headers library clean veryclean all binary program doc \
         veryclean/local
@@ -44,3 +50,25 @@ else
 endif
 	rm -f include/python
 	ln -sf $(PYTHONINCLUDE) include/python
+
+install:
+	mkdir -p \
+		$(DESTDIR)/$(BINDIR)			\
+		$(DESTDIR)/$(LIBDIR)			\
+		$(DESTDIR)/usr/lib/apt/methods		\
+		$(DESTDIR)/usr/lib/apt/solvers		\
+		$(DESTDIR)/usr/lib/dpkg/methods/apt	\
+		$(DESTDIR)/usr/share/locale
+	for i in apt.conf.d preferences.d sources.list.d trusted.gpg.d ; do mkdir -p $(DESTDIR)/$(SYSCONFDIR)/apt/$$i ; done
+	for i in apt-cache apt-cdrom apt-config apt-get apt-key apt-mark ; do cp -P --preserve bin/$$i $(DESTDIR)/$(BINDIR) ; done
+	for i in \
+		libapt-inst.so		\
+		libapt-inst.so.1.4	\
+		libapt-inst.so.1.4.0	\
+		libapt-pkg.so		\
+		libapt-pkg.so.4.12	\
+		libapt-pkg.so.4.12.0	\
+		; do cp -P --preserve bin/$$i $(DESTDIR)/$(LIBDIR) ; done
+	cp -R --preserve -P bin/methods/* $(DESTDIR)/usr/lib/apt/methods
+	cp -R --preserve -P scripts/dselect/* $(DESTDIR)/usr/lib/dpkg/methods/apt
+	cp -R --preserve -P locale/* $(DESTDIR)/usr/share/locale/
