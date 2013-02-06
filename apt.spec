@@ -2,7 +2,7 @@
 Summary: APT - Another packaging tool
 Name: apt
 Version: %{version}
-Release: el6.1
+Release: el6.2
 Source0: apt-%{version}.tar.gz
 License: GPL
 Group: System Environment/Libraries
@@ -19,7 +19,7 @@ mkdir -p build
 echo "running autoconf"
 autoconf -f
 echo "running configure"
-( cd build && ../configure --prefix=/usr --prefix=/etc --bindir=/bin --libdir=/lib )
+( cd build && ../configure --prefix=/usr --prefix=/etc --bindir=/bin --libdir=/lib --disable-nls )
 echo "buid and install"
 ( cd build && make )
 %install
