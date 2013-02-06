@@ -25,9 +25,10 @@
 #include <apt-pkg/configuration.h>
 #include <apt-pkg/sptr.h>
 
-#include <apti18n.h>
 #include <iostream>
 #include <fcntl.h>
+
+#include <apti18n.h>
 									/*}}}*/
 using namespace std;
 
@@ -183,8 +184,7 @@ bool pkgPackageManager::CreateOrderList()
 	 continue;
       
       // Mark the package and its dependends for immediate configuration
-      if ((((I->Flags & pkgCache::Flag::Essential) == pkgCache::Flag::Essential ||
-	   (I->Flags & pkgCache::Flag::Important) == pkgCache::Flag::Important) &&
+      if ((((I->Flags & pkgCache::Flag::Essential) == pkgCache::Flag::Essential) &&
 	  NoImmConfigure == false) || ImmConfigureAll)
       {
 	 if(Debug && !ImmConfigureAll)
@@ -338,7 +338,7 @@ bool pkgPackageManager::SmartConfigure(PkgIterator Pkg, int const Depth)
       however if there is a loop (A depends on B, B depends on A) this will not 
       be the case, so check for dependencies before configuring. */
    bool Bad = false, Changed = false;
-   const unsigned int max_loops = _config->FindI("APT::pkgPackageManager::MaxLoopCount", 5000);
+   const unsigned int max_loops = _config->FindI("APT::pkgPackageManager::MaxLoopCount", 500);
    unsigned int i=0;
    do
    {
@@ -524,7 +524,8 @@ bool pkgPackageManager::EarlyRemove(PkgIterator Pkg)
 
    // Essential packages get special treatment
    bool IsEssential = false;
-   if ((Pkg->Flags & pkgCache::Flag::Essential) != 0)
+   if ((Pkg->Flags & pkgCache::Flag::Essential) != 0 ||
+       (Pkg->Flags & pkgCache::Flag::Important) != 0)
       IsEssential = true;
 
    /* Check for packages that are the dependents of essential packages and 
@@ -534,7 +535,8 @@ bool pkgPackageManager::EarlyRemove(PkgIterator Pkg)
       for (DepIterator D = Pkg.RevDependsList(); D.end() == false &&
 	   IsEssential == false; ++D)
 	 if (D->Type == pkgCache::Dep::Depends || D->Type == pkgCache::Dep::PreDepends)
-	    if ((D.ParentPkg()->Flags & pkgCache::Flag::Essential) != 0)
+	    if ((D.ParentPkg()->Flags & pkgCache::Flag::Essential) != 0 ||
+	        (D.ParentPkg()->Flags & pkgCache::Flag::Important) != 0)
 	       IsEssential = true;
    }
 
@@ -601,8 +603,8 @@ bool pkgPackageManager::SmartUnPack(PkgIterator Pkg, bool const Immediate, int c
       This will be either dealt with if the package is configured as a dependency of Pkg (if and when Pkg is configured),
       or by the ConfigureAll call at the end of the for loop in OrderInstall. */
    bool Changed = false;
-   const unsigned int max_loops = _config->FindI("APT::pkgPackageManager::MaxLoopCount", 5000);
-   unsigned int i=0;
+   const unsigned int max_loops = _config->FindI("APT::pkgPackageManager::MaxLoopCount", 500);
+   unsigned int i = 0;
    do 
    {
       Changed = false;
@@ -642,7 +644,7 @@ bool pkgPackageManager::SmartUnPack(PkgIterator Pkg, bool const Immediate, int c
 	    }
 
 	    // Look for something that could be configured.
-	    for (DepIterator Cur = Start; Bad == true; ++Cur)
+	    for (DepIterator Cur = Start; Bad == true && Cur.end() == false; ++Cur)
 	    {
 	       SPtrArray<Version *> VList = Cur.AllTargets();
 	       for (Version **I = VList; *I != 0; ++I)
@@ -855,7 +857,10 @@ bool pkgPackageManager::SmartUnPack(PkgIterator Pkg, bool const Immediate, int c
 	 This way we avoid that M-A: enabled packages are installed before
 	 their older non-M-A enabled packages are replaced by newer versions */
       bool const installed = Pkg->CurrentVer != 0;
-      if (installed == true && Install(Pkg,FileNames[Pkg->ID]) == false)
+      if (installed == true &&
+	  (instVer != Pkg.CurrentVer() ||
+	   ((Cache[Pkg].iFlags & pkgDepCache::ReInstall) == pkgDepCache::ReInstall)) &&
+	  Install(Pkg,FileNames[Pkg->ID]) == false)
 	 return false;
       for (PkgIterator P = Pkg.Group().PackageList();
 	   P.end() == false; P = Pkg.Group().NextPkg(P))
@@ -882,7 +887,9 @@ bool pkgPackageManager::SmartUnPack(PkgIterator Pkg, bool const Immediate, int c
       }
    }
    // packages which are already unpacked don't need to be unpacked again
-   else if (Pkg.State() != pkgCache::PkgIterator::NeedsConfigure && Install(Pkg,FileNames[Pkg->ID]) == false)
+   else if ((instVer != Pkg.CurrentVer() ||
+	     ((Cache[Pkg].iFlags & pkgDepCache::ReInstall) == pkgDepCache::ReInstall)) &&
+	    Install(Pkg,FileNames[Pkg->ID]) == false)
       return false;
 
    if (Immediate == true) {

@@ -24,7 +24,7 @@
 
 #define Stringfy_(x) # x
 #define Stringfy(x)  Stringfy_(x)
-const char *pkgVersion = VERSION;
+const char *pkgVersion = PACKAGE_VERSION;
 const char *pkgLibVersion = Stringfy(APT_PKG_MAJOR) "."
                             Stringfy(APT_PKG_MINOR) "." 
                             Stringfy(APT_PKG_RELEASE);
@@ -92,7 +92,6 @@ bool pkgInitConfig(Configuration &Cnf)
    Cnf.Set("Dir::Ignore-Files-Silently::", "\\.dpkg-[a-z]+$");
    Cnf.Set("Dir::Ignore-Files-Silently::", "\\.save$");
    Cnf.Set("Dir::Ignore-Files-Silently::", "\\.orig$");
-   Cnf.Set("Dir::Ignore-Files-Silently::", "\\.distUpgrade$");
 
    // Default cdrom mount point
    Cnf.CndSet("Acquire::cdrom::mount", "/media/cdrom/");

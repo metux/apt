@@ -29,6 +29,7 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <errno.h>
+#include <string.h>
 #include <stdio.h>
 #include <string.h>
 #include <algorithm>
@@ -186,7 +187,7 @@ pkgDPkgPM::~pkgDPkgPM()
 bool pkgDPkgPM::Install(PkgIterator Pkg,string File)
 {
    if (File.empty() == true || Pkg.end() == true)
-      return _error->Error("Internal Error, No file name for %s",Pkg.Name());
+      return _error->Error("Internal Error, No file name for %s",Pkg.FullName().c_str());
 
    // If the filename string begins with DPkg::Chroot-Directory, return the
    // substr that is within the chroot so dpkg can access it.
@@ -424,7 +425,7 @@ void pkgDPkgPM::DoStdin(int master)
    unsigned char input_buf[256] = {0,}; 
    ssize_t len = read(0, input_buf, sizeof(input_buf));
    if (len)
-      write(master, input_buf, len);
+      FileFd::Write(master, input_buf, len);
    else
       d->stdin_is_dev_null = true;
 }
@@ -450,7 +451,7 @@ void pkgDPkgPM::DoTerminalPty(int master)
    }  
    if(len <= 0) 
       return;
-   write(1, term_buf, len);
+   FileFd::Write(1, term_buf, len);
    if(d->term_out)
       fwrite(term_buf, len, sizeof(char), d->term_out);
 }
@@ -525,7 +526,7 @@ void pkgDPkgPM::ProcessDpkgStatusLine(int OutStatusFd, char *line)
 	     << ":" << s
 	     << endl;
       if(OutStatusFd > 0)
-	 write(OutStatusFd, status.str().c_str(), status.str().size());
+	 FileFd::Write(OutStatusFd, status.str().c_str(), status.str().size());
       if (Debug == true)
 	 std::clog << "send: '" << status.str() << "'" << endl;
 
@@ -549,7 +550,7 @@ void pkgDPkgPM::ProcessDpkgStatusLine(int OutStatusFd, char *line)
 	     << ":" << list[3]
 	     << endl;
       if(OutStatusFd > 0)
-	 write(OutStatusFd, status.str().c_str(), status.str().size());
+	 FileFd::Write(OutStatusFd, status.str().c_str(), status.str().size());
       if (Debug == true)
 	 std::clog << "send: '" << status.str() << "'" << endl;
       pkgFailures++;
@@ -563,7 +564,7 @@ void pkgDPkgPM::ProcessDpkgStatusLine(int OutStatusFd, char *line)
 	     << ":" << list[3]
 	     << endl;
       if(OutStatusFd > 0)
-	 write(OutStatusFd, status.str().c_str(), status.str().size());
+	 FileFd::Write(OutStatusFd, status.str().c_str(), status.str().size());
       if (Debug == true)
 	 std::clog << "send: '" << status.str() << "'" << endl;
       return;
@@ -591,7 +592,7 @@ void pkgDPkgPM::ProcessDpkgStatusLine(int OutStatusFd, char *line)
 	     << ":" << s
 	     << endl;
       if(OutStatusFd > 0)
-	 write(OutStatusFd, status.str().c_str(), status.str().size());
+	 FileFd::Write(OutStatusFd, status.str().c_str(), status.str().size());
       if (Debug == true)
 	 std::clog << "send: '" << status.str() << "'" << endl;
    }
@@ -862,6 +863,8 @@ static int racy_pselect(int nfds, fd_set *readfds, fd_set *writefds,
 */
 bool pkgDPkgPM::Go(int OutStatusFd)
 {
+   pkgPackageManager::SigINTStop = false;
+
    // Generate the base argument list for dpkg
    std::vector<const char *> Args;
    unsigned long StartSize = 0;
@@ -907,7 +910,7 @@ bool pkgDPkgPM::Go(int OutStatusFd)
       dup2(nullfd, STDIN_FILENO);
       dup2(nullfd, STDOUT_FILENO);
       dup2(nullfd, STDERR_FILENO);
-      execv(Args[0], (char**) &Args[0]);
+      execvp(Args[0], (char**) &Args[0]);
       _error->WarningE("dpkgGo", "Can't detect if dpkg supports multi-arch!");
       _exit(2);
    }
@@ -1053,7 +1056,8 @@ bool pkgDPkgPM::Go(int OutStatusFd)
       }
 
       int fd[2];
-      pipe(fd);
+      if (pipe(fd) != 0)
+	 return _error->Errno("pipe","Failed to create IPC pipe to dpkg");
 
 #define ADDARG(X) Args.push_back(X); Size += strlen(X)
 #define ADDARGC(X) Args.push_back(X); Size += sizeof(X) - 1
@@ -1127,7 +1131,9 @@ bool pkgDPkgPM::Go(int OutStatusFd)
 	    if (I->Op == Item::Configure && disappearedPkgs.find(I->Pkg.Name()) != disappearedPkgs.end())
 	       continue;
 	    // We keep this here to allow "smooth" transitions from e.g. multiarch dpkg/ubuntu to dpkg/debian
-	    if (dpkgMultiArch == false && (I->Pkg.Arch() == nativeArch || !strcmp(I->Pkg.Arch(), "all")))
+	    if (dpkgMultiArch == false && (I->Pkg.Arch() == nativeArch ||
+					   strcmp(I->Pkg.Arch(), "all") == 0 ||
+					   strcmp(I->Pkg.Arch(), "none") == 0))
 	    {
 	       char const * const name = I->Pkg.Name();
 	       ADDARG(name);
@@ -1144,7 +1150,9 @@ bool pkgDPkgPM::Go(int OutStatusFd)
                }
 	       else
 		  PkgVer = Cache[I->Pkg].InstVerIter(Cache);
-               if (PkgVer.end() == false)
+	       if (strcmp(I->Pkg.Arch(), "none") == 0)
+		  ; // never arch-qualify a package without an arch
+	       else if (PkgVer.end() == false)
                   name.append(":").append(PkgVer.Arch());
                else
                   _error->Warning("Can not find PkgVer for '%s'", name.c_str());
@@ -1234,7 +1242,7 @@ bool pkgDPkgPM::Go(int OutStatusFd)
 		<< (PackagesDone/float(PackagesTotal)*100.0) 
 		<< ":" << _("Running dpkg")
 		<< endl;
-	 write(OutStatusFd, status.str().c_str(), status.str().size());
+	 FileFd::Write(OutStatusFd, status.str().c_str(), status.str().size());
       }
       Child = ExecFork();
             
@@ -1431,9 +1439,8 @@ bool pkgDPkgPM::Go(int OutStatusFd)
 }
 
 void SigINT(int sig) {
-   if (_config->FindB("APT::Immediate-Configure-All",false)) 
-      pkgPackageManager::SigINTStop = true;
-} 
+   pkgPackageManager::SigINTStop = true;
+}
 									/*}}}*/
 // pkgDpkgPM::Reset - Dump the contents of the command list		/*{{{*/
 // ---------------------------------------------------------------------
@@ -1448,11 +1455,17 @@ void pkgDPkgPM::Reset()
 /* */
 void pkgDPkgPM::WriteApportReport(const char *pkgpath, const char *errormsg) 
 {
+   // If apport doesn't exist or isn't installed do nothing
+   // This e.g. prevents messages in 'universes' without apport
+   pkgCache::PkgIterator apportPkg = Cache.FindPkg("apport");
+   if (apportPkg.end() == true || apportPkg->CurrentVer == 0)
+      return;
+
    string pkgname, reportfile, srcpkgname, pkgver, arch;
    string::size_type pos;
    FILE *report;
 
-   if (_config->FindB("Dpkg::ApportFailureReport", true) == false)
+   if (_config->FindB("Dpkg::ApportFailureReport", false) == false)
    {
       std::clog << "configured to not write apport reports" << std::endl;
       return;
@@ -1479,47 +1492,16 @@ void pkgDPkgPM::WriteApportReport(const char *pkgpath, const char *errormsg)
    }
 
    // do not report out-of-memory failures 
-   if(strstr(errormsg, strerror(ENOMEM)) != NULL ||
-      strstr(errormsg, "failed to allocate memory") != NULL) {
+   if(strstr(errormsg, strerror(ENOMEM)) != NULL) {
       std::clog << _("No apport report written because the error message indicates a out of memory error") << std::endl;
       return;
    }
 
-   // do not report bugs regarding inaccessible local files
-   if(strstr(errormsg, strerror(ENOENT)) != NULL ||
-      strstr(errormsg, "cannot access archive") != NULL) {
-      std::clog << _("No apport report written because the error message indicates an issue on the local system") << std::endl;
+   // do not report dpkg I/O errors
+   // XXX - this message is localized, but this only matches the English version.  This is better than nothing.
+   if(strstr(errormsg, "short read in buffer_copy (")) {
+      std::clog << _("No apport report written because the error message indicates a dpkg I/O error") << std::endl;
       return;
-   }
-
-   // do not report errors encountered when decompressing packages
-   if(strstr(errormsg, "--fsys-tarfile returned error exit status 2") != NULL) {
-      std::clog << _("No apport report written because the error message indicates an issue on the local system") << std::endl;
-      return;
-   }
-
-   // do not report dpkg I/O errors, this is a format string, so we compare
-   // the prefix and the suffix of the error with the dpkg error message
-   vector<string> io_errors;
-   io_errors.push_back(string("failed to read on buffer copy for %s"));
-   io_errors.push_back(string("failed in write on buffer copy for %s"));
-   io_errors.push_back(string("short read on buffer copy for %s"));
-
-   for (vector<string>::iterator I = io_errors.begin(); I != io_errors.end(); I++)
-   {
-      vector<string> list = VectorizeString(dgettext("dpkg", (*I).c_str()), '%');
-      if (list.size() > 1) {
-         // we need to split %s, VectorizeString only allows char so we need
-         // to kill the "s" manually
-         if (list[1].size() > 1) {
-            list[1].erase(0, 1);
-            if(strstr(errormsg, list[0].c_str()) && 
-               strstr(errormsg, list[1].c_str())) {
-               std::clog << _("No apport report written because the error message indicates a dpkg I/O error") << std::endl;
-               return;
-            }
-         }
-      }
    }
 
    // get the pkgname and reportfile
@@ -1566,7 +1548,7 @@ void pkgDPkgPM::WriteApportReport(const char *pkgpath, const char *errormsg)
 	 if(strstr(strbuf,"Package:") == strbuf)
 	 {
 	    char pkgname[255], version[255];
-	    if(sscanf(strbuf, "Package: %s %s", pkgname, version) == 2)
+	    if(sscanf(strbuf, "Package: %254s %254s", pkgname, version) == 2)
 	       if(strcmp(pkgver.c_str(), version) == 0)
 	       {
 		  fclose(report);
@@ -1611,24 +1593,6 @@ void pkgDPkgPM::WriteApportReport(const char *pkgpath, const char *errormsg)
       {
 	 while( fgets(buf, sizeof(buf), log) != NULL)
 	    fprintf(report, " %s", buf);
-         fprintf(report, " \n");
-	 fclose(log);
-      }
-   }
-
-   // attach history log it if we have it
-   string histfile_name = _config->FindFile("Dir::Log::History");
-   if (!histfile_name.empty())
-   {
-      FILE *log = NULL;
-      char buf[1024];
-
-      fprintf(report, "DpkgHistoryLog:\n");
-      log = fopen(histfile_name.c_str(),"r");
-      if(log != NULL)
-      {
-	 while( fgets(buf, sizeof(buf), log) != NULL)
-	    fprintf(report, " %s", buf);
 	 fclose(log);
       }
    }
@@ -1637,7 +1601,10 @@ void pkgDPkgPM::WriteApportReport(const char *pkgpath, const char *errormsg)
    const char *ops_str[] = {"Install", "Configure","Remove","Purge"};
    fprintf(report, "AptOrdering:\n");
    for (vector<Item>::iterator I = List.begin(); I != List.end(); ++I)
-      fprintf(report, " %s: %s\n", (*I).Pkg.Name(), ops_str[(*I).Op]);
+      if ((*I).Pkg != NULL)
+         fprintf(report, " %s: %s\n", (*I).Pkg.Name(), ops_str[(*I).Op]);
+      else
+         fprintf(report, " %s: %s\n", "NULL", ops_str[(*I).Op]);
 
    // attach dmesg log (to learn about segfaults)
    if (FileExists("/bin/dmesg"))
