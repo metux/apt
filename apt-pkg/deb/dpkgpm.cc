@@ -1479,7 +1479,11 @@ void pkgDPkgPM::WriteApportReport(const char *pkgpath, const char *errormsg)
    }
 
    // check if its not a follow up error 
+#ifdef USE_NLS
    const char *needle = dgettext("dpkg", "dependency problems - leaving unconfigured");
+#else
+   const char *needle = "dependency problems - leaving unconfigured";
+#endif
    if(strstr(errormsg, needle) != NULL) {
       std::clog << _("No apport report written because the error message indicates its a followup error from a previous failure.") << std::endl;
       return;
