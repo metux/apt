@@ -2,7 +2,7 @@
 Summary: APT - Another packaging tool
 Name: apt
 Version: %{version}
-Release: el6.2
+Release: el6.5
 Source0: apt-%{version}.tar.gz
 License: GPL
 Group: System Environment/Libraries
@@ -19,11 +19,13 @@ mkdir -p build
 echo "running autoconf"
 autoconf -f
 echo "running configure"
-( cd build && ../configure --prefix=/usr --prefix=/etc --bindir=/bin --libdir=/lib --disable-nls )
+( cd build && ../configure --prefix=/usr --prefix=/etc --bindir=/bin --libdir=/lib )
 echo "buid and install"
 ( cd build && make )
 %install
 ( cd build && make DESTDIR=$RPM_BUILD_ROOT install )
+mkdir -p $RPM_BUILD_ROOT/usr/include/apt-pkg
+cp -R --preserve build/include/apt-pkg/* $RPM_BUILD_ROOT/usr/include/apt-pkg/
 %clean
 rm -Rf build
 %files
@@ -226,6 +228,76 @@ rm -Rf build
 /usr/share/locale/zh_CN/LC_MESSAGES/libapt-inst1.5.mo
 /usr/share/locale/zh_TW/LC_MESSAGES/apt-utils.mo
 /usr/share/locale/zh_TW/LC_MESSAGES/libapt-inst1.5.mo
+/usr/include/apt-pkg/acquire-item.h
+/usr/include/apt-pkg/acquire-method.h
+/usr/include/apt-pkg/acquire-worker.h
+/usr/include/apt-pkg/acquire.h
+/usr/include/apt-pkg/algorithms.h
+/usr/include/apt-pkg/aptconfiguration.h
+/usr/include/apt-pkg/arfile.h
+/usr/include/apt-pkg/cachefile.h
+/usr/include/apt-pkg/cachefilter.h
+/usr/include/apt-pkg/cacheiterators.h
+/usr/include/apt-pkg/cacheset.h
+/usr/include/apt-pkg/cdrom.h
+/usr/include/apt-pkg/cdromutl.h
+/usr/include/apt-pkg/clean.h
+/usr/include/apt-pkg/cmndline.h
+/usr/include/apt-pkg/configuration.h
+/usr/include/apt-pkg/crc-16.h
+/usr/include/apt-pkg/debfile.h
+/usr/include/apt-pkg/debindexfile.h
+/usr/include/apt-pkg/deblistparser.h
+/usr/include/apt-pkg/debmetaindex.h
+/usr/include/apt-pkg/debrecords.h
+/usr/include/apt-pkg/debsrcrecords.h
+/usr/include/apt-pkg/debsystem.h
+/usr/include/apt-pkg/debversion.h
+/usr/include/apt-pkg/depcache.h
+/usr/include/apt-pkg/dirstream.h
+/usr/include/apt-pkg/dpkgpm.h
+/usr/include/apt-pkg/edsp.h
+/usr/include/apt-pkg/edspindexfile.h
+/usr/include/apt-pkg/edsplistparser.h
+/usr/include/apt-pkg/edspsystem.h
+/usr/include/apt-pkg/error.h
+/usr/include/apt-pkg/extract.h
+/usr/include/apt-pkg/extracttar.h
+/usr/include/apt-pkg/filelist.h
+/usr/include/apt-pkg/fileutl.h
+/usr/include/apt-pkg/hashes.h
+/usr/include/apt-pkg/hashsum_template.h
+/usr/include/apt-pkg/indexcopy.h
+/usr/include/apt-pkg/indexfile.h
+/usr/include/apt-pkg/indexrecords.h
+/usr/include/apt-pkg/init.h
+/usr/include/apt-pkg/macros.h
+/usr/include/apt-pkg/md5.h
+/usr/include/apt-pkg/metaindex.h
+/usr/include/apt-pkg/mmap.h
+/usr/include/apt-pkg/netrc.h
+/usr/include/apt-pkg/orderlist.h
+/usr/include/apt-pkg/packagemanager.h
+/usr/include/apt-pkg/pkgcache.h
+/usr/include/apt-pkg/pkgcachegen.h
+/usr/include/apt-pkg/pkgrecords.h
+/usr/include/apt-pkg/pkgsystem.h
+/usr/include/apt-pkg/policy.h
+/usr/include/apt-pkg/progress.h
+/usr/include/apt-pkg/sha1.h
+/usr/include/apt-pkg/sha2.h
+/usr/include/apt-pkg/sha256.h
+/usr/include/apt-pkg/sha2_internal.h
+/usr/include/apt-pkg/sourcelist.h
+/usr/include/apt-pkg/sptr.h
+/usr/include/apt-pkg/srcrecords.h
+/usr/include/apt-pkg/strutl.h
+/usr/include/apt-pkg/tagfile.h
+/usr/include/apt-pkg/vendor.h
+/usr/include/apt-pkg/vendorlist.h
+/usr/include/apt-pkg/version.h
+/usr/include/apt-pkg/versionmatch.h
+/usr/include/apt-pkg/weakptr.h
 %config(noreplace) /etc/apt/apt.conf.d
 %config(noreplace) /etc/apt/trusted.gpg.d
 %config(noreplace) /etc/apt/preferences.d

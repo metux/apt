@@ -1774,7 +1774,7 @@ int main(int argc,const char *argv[])					/*{{{*/
                                     {0,0}};
 
    // Set up gettext support
-   setlocale(LC_ALL,"");
+   setlocale(LC_ALL,"de_DE.utf8");	// REALLY UGLY HACK
    textdomain(PACKAGE);
 
    // Parse the command line and initialize the package library
